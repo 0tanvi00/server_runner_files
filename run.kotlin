@@ -1,0 +1,28 @@
+import io.ktor.application.*
+import io.ktor.response.*
+import io.ktor.routing.*
+import io.ktor.server.engine.*
+import io.ktor.server.netty.*
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
+fun main() {
+    embeddedServer(Netty, port = 3000) {
+        routing {
+            get("/") {
+                callPythonScript()
+                call.respondText("Kotlin (Ktor) server is running!\n")
+            }
+        }
+    }.start(wait = true)
+}
+
+fun callPythonScript() {
+    val process = ProcessBuilder("python", "test.py").start()
+    val reader = BufferedReader(InputStreamReader(process.inputStream))
+    val errReader = BufferedReader(InputStreamReader(process.errorStream))
+    reader.forEachLine { println("Python script output: $it") }
+    errReader.forEachLine { System.err.println("Error from Python script: $it") }
+    val exitCode = process.waitFor()
+    println("Python script exited with code $exitCode")
+}
