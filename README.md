@@ -176,5 +176,3 @@ Your support motivates more open examples like this 🚀
 
 ---
 
-Would you like me to generate the **repo folder structure + all 6 server files and the README.md** as a downloadable `.zip` (so you can upload it to GitHub in one go)?
-```
