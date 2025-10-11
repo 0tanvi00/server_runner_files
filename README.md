@@ -1,6 +1,3 @@
-Perfect ✅ — here’s a **ready-to-upload `README.md`** you can put directly in your GitHub repo.
-It introduces the project, explains what each file does, and includes run instructions for all six languages.
-You can copy-paste this directly into your `README.md` file.
 
 ---
 
