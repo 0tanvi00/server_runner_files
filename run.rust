@@ -1,0 +1,28 @@
+use actix_web::{web, App, HttpServer, Responder};
+use std::process::Command;
+
+async fn index() -> impl Responder {
+    call_python_script();
+    "Rust (Actix) server is running!\n"
+}
+
+fn call_python_script() {
+    let output = Command::new("python")
+        .arg("test.py")
+        .output()
+        .expect("Failed to execute Python script");
+
+    println!("Python script output: {}", String::from_utf8_lossy(&output.stdout));
+    if !output.stderr.is_empty() {
+        eprintln!("Error from Python script: {}", String::from_utf8_lossy(&output.stderr));
+    }
+    println!("Python script exited with code {}", output.status);
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| App::new().route("/", web::get().to(index)))
+        .bind("127.0.0.1:3000")?
+        .run()
+        .await
+}
