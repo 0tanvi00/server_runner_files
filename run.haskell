@@ -1,0 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
+import Web.Scotty
+import System.Process (readProcess, readProcessWithExitCode)
+import System.Exit (ExitCode)
+
+main = scotty 3000 $ do
+    get "/" $ do
+        callPythonScript
+        text "Haskell (Scotty) server is running!\n"
+
+callPythonScript :: ActionM ()
+callPythonScript = do
+    (exitCode, stdout, stderr) <- liftIO $ readProcessWithExitCode "python" ["test.py"] ""
+    liftIO $ putStrLn $ "Python script output: " ++ stdout
+    liftIO $ putStrLn $ "Error from Python script: " ++ stderr
+    liftIO $ putStrLn $ "Python script exited with code " ++ show exitCode
