@@ -1,0 +1,23 @@
+Mix.install([
+  {:plug_cowboy, "~> 2.6"}
+])
+
+defmodule Server do
+  use Plug.Router
+
+  plug :match
+  plug :dispatch
+
+  get "/" do
+    call_python_script()
+    send_resp(conn, 200, "Elixir server is running!\n")
+  end
+
+  def call_python_script do
+    {output, exit_code} = System.cmd("python", ["test.py"], stderr_to_stdout: true)
+    IO.puts("Python script output: #{output}")
+    IO.puts("Python script exited with code #{exit_code}")
+  end
+end
+
+Plug.Cowboy.http(Server, [], port: 3000)
