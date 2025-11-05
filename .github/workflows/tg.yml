@@ -13,7 +13,6 @@ jobs:
         run: |
           URLS=("https://tg-main.onrender.com/" "https://tg-main.onrender.com/health" "https://tg-main.onrender.com/api/status")
           UAS=("Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" "Mozilla/5.0 (X11; Linux x86_64)" "Googlebot/2.1 (+http://www.google.com/bot.html)")
-          sleep $((RANDOM % 120))
           URL=${URLS[$RANDOM % ${#URLS[@]}]}; UA=${UAS[$RANDOM % ${#UAS[@]}]}
           echo "-> Pinging $URL"
           resp=$(curl -s -A "$UA" -w "\n%{http_code}" "$URL")
