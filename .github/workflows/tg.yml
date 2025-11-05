@@ -1,0 +1,19 @@
+name: Keep Render Service Awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Service
+        run: |
+          echo "Pinging Render app to prevent sleep..."
+          # Add a small random delay (0–2 min) to avoid pattern detection
+          sleep $((RANDOM % 120))
+          # Hit your live app
+          curl -s -A "Mozilla/5.0" https://tg-main.onrender.com/ > /dev/null
+          echo "Ping done ✅ at $(date)"
