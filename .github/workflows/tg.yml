@@ -2,7 +2,7 @@ name: Keep Render Service Awake (randomized)
 
 on:
   schedule:
-    # runs every 10 minutes (you already used */10)
+    # runs every 10 minutes (adjust as needed)
     - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
@@ -49,12 +49,10 @@ jobs:
           )
 
           # ----- randomize behavior -----
-          # random sleep BEFORE ping to add jitter (0 - 180 seconds)
           PRE_SLEEP=$((RANDOM % 181))
           echo "Pre-ping jitter sleep: ${PRE_SLEEP}s"
           sleep "${PRE_SLEEP}"
 
-          # choose endpoint, ua, accept-language, referer randomly
           EP_IDX=$((RANDOM % ${#ENDPOINTS[@]}))
           UA_IDX=$((RANDOM % ${#USER_AGENTS[@]}))
           AL_IDX=$((RANDOM % ${#ACCEPT_LANGS[@]}))
@@ -65,7 +63,6 @@ jobs:
           ACCEPT_LANG="${ACCEPT_LANGS[$AL_IDX]}"
           REFERER="${REFERERS[$REF_IDX]}"
 
-          # add randomized query param to reduce identical requests
           RAND_TOKEN=$(date +%s%N)$((RANDOM))
           URL="${BASE_URL}${ENDPOINT}"
           if [[ "$URL" != *"?"* ]]; then
@@ -83,9 +80,6 @@ jobs:
             echo "Referer: (none)"
           fi
 
-          # Use curl to capture body + http code (last 3 chars)
-          # -s silent, -S show errors, -L follow redirects, -m timeout
-          # timeout set to 30s to avoid stuck runs
           RAW_RESPONSE=$(curl -sSL -m 30 -w "%{http_code}" \
             -A "$USER_AGENT" \
             -H "Accept: application/json, text/html;q=0.9,*/*;q=0.8" \
@@ -93,39 +87,35 @@ jobs:
             ${REFERER:+-e "$REFERER"} \
             "$URL" || true)
 
-          # separate status code (last 3 chars) and body (rest)
           HTTP_CODE="${RAW_RESPONSE: -3}"
           BODY="${RAW_RESPONSE:0:${#RAW_RESPONSE}-3}"
 
           echo "HTTP status: $HTTP_CODE"
-
-          # try to pretty-print JSON, otherwise print raw body (trim to sane length)
           if [[ -n "$BODY" ]]; then
             echo "Response body (first 2000 chars shown):"
-            # attempt pretty-print via python json tool; fallback to raw
-            echo "$BODY" | python -c 'import sys, json
+            echo "$BODY" | python3 - <<'PYCODE' || echo "$BODY" | head -c 2000
+import sys, json
 text = sys.stdin.read()
 try:
     parsed = json.loads(text)
     print(json.dumps(parsed, indent=2, ensure_ascii=False))
 except Exception:
-    print(text[:2000])' || echo "$BODY" | head -c 2000
+    print(text[:2000])
+PYCODE
           else
             echo "<empty body>"
           fi
 
-          # print small success/diagnostic message
           if [[ "$HTTP_CODE" =~ ^2 ]]; then
             echo "Ping result: OK ✅ ($(date -u))"
           elif [[ "$HTTP_CODE" =~ ^3 ]]; then
             echo "Ping result: Redirect (3xx) — check target or follow-up required."
           elif [[ "$HTTP_CODE" =~ ^5 ]]; then
-            echo "Ping result: Server error (5xx) — possibly spun down or blocked by render."
+            echo "Ping result: Server error (5xx) — possibly spun down or blocked by Render."
           else
             echo "Ping result: HTTP $HTTP_CODE"
           fi
 
-          # final small random post-sleep to vary total timing
-          POST_SLEEP=$((RANDOM % 61))  # 0-60s
+          POST_SLEEP=$((RANDOM % 61))
           echo "Post-ping jitter sleep: ${POST_SLEEP}s"
           sleep "${POST_SLEEP}"
