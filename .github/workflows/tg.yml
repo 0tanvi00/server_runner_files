@@ -1,121 +1,24 @@
-name: Keep Render Service Awake (randomized)
+name: Keep Render Service Awake
 
 on:
   schedule:
-    # runs every 10 minutes (adjust as needed)
     - cron: "*/10 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Randomized ping to Render
-        shell: bash
+      - name: Randomized ping
         run: |
-          set -euo pipefail
-
-          # ----- config -----
-          BASE_URL="https://tg-main.onrender.com"
-          ENDPOINTS=(
-            "/"
-            "/health"
-            "/api/health"
-            "/status"
-            "/?source=hbtgvfdcs"
-          )
-
-          USER_AGENTS=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15"
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
-            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
-          )
-
-          ACCEPT_LANGS=(
-            "en-US,en;q=0.9"
-            "en-GB,en;q=0.9"
-            "en-IN,en;q=0.9"
-            "de-DE,de;q=0.9,en;q=0.8"
-          )
-
-          REFERERS=(
-            "https://www.google.com/"
-            "https://www.bing.com/"
-            "https://twitter.com/"
-            "https://news.ycombinator.com/"
-            "-"
-          )
-
-          # ----- randomize behavior -----
-          PRE_SLEEP=$((RANDOM % 181))
-          echo "Pre-ping jitter sleep: ${PRE_SLEEP}s"
-          sleep "${PRE_SLEEP}"
-
-          EP_IDX=$((RANDOM % ${#ENDPOINTS[@]}))
-          UA_IDX=$((RANDOM % ${#USER_AGENTS[@]}))
-          AL_IDX=$((RANDOM % ${#ACCEPT_LANGS[@]}))
-          REF_IDX=$((RANDOM % ${#REFERERS[@]}))
-
-          ENDPOINT="${ENDPOINTS[$EP_IDX]}"
-          USER_AGENT="${USER_AGENTS[$UA_IDX]}"
-          ACCEPT_LANG="${ACCEPT_LANGS[$AL_IDX]}"
-          REFERER="${REFERERS[$REF_IDX]}"
-
-          RAND_TOKEN=$(date +%s%N)$((RANDOM))
-          URL="${BASE_URL}${ENDPOINT}"
-          if [[ "$URL" != *"?"* ]]; then
-            URL="${URL}?_ka=${RAND_TOKEN}"
-          else
-            URL="${URL}&_ka=${RAND_TOKEN}"
-          fi
-
-          echo "Selected URL: $URL"
-          echo "User-Agent: $USER_AGENT"
-          echo "Accept-Language: $ACCEPT_LANG"
-          if [[ "$REFERER" != "-" ]]; then
-            echo "Referer: $REFERER"
-          else
-            echo "Referer: (none)"
-          fi
-
-          RAW_RESPONSE=$(curl -sSL -m 30 -w "%{http_code}" \
-            -A "$USER_AGENT" \
-            -H "Accept: application/json, text/html;q=0.9,*/*;q=0.8" \
-            -H "Accept-Language: $ACCEPT_LANG" \
-            ${REFERER:+-e "$REFERER"} \
-            "$URL" || true)
-
-          HTTP_CODE="${RAW_RESPONSE: -3}"
-          BODY="${RAW_RESPONSE:0:${#RAW_RESPONSE}-3}"
-
-          echo "HTTP status: $HTTP_CODE"
-          if [[ -n "$BODY" ]]; then
-            echo "Response body (first 2000 chars shown):"
-            echo "$BODY" | python3 - <<'PYCODE' || echo "$BODY" | head -c 2000
-import sys, json
-text = sys.stdin.read()
-try:
-    parsed = json.loads(text)
-    print(json.dumps(parsed, indent=2, ensure_ascii=False))
-except Exception:
-    print(text[:2000])
-PYCODE
-          else
-            echo "<empty body>"
-          fi
-
-          if [[ "$HTTP_CODE" =~ ^2 ]]; then
-            echo "Ping result: OK ✅ ($(date -u))"
-          elif [[ "$HTTP_CODE" =~ ^3 ]]; then
-            echo "Ping result: Redirect (3xx) — check target or follow-up required."
-          elif [[ "$HTTP_CODE" =~ ^5 ]]; then
-            echo "Ping result: Server error (5xx) — possibly spun down or blocked by Render."
-          else
-            echo "Ping result: HTTP $HTTP_CODE"
-          fi
-
-          POST_SLEEP=$((RANDOM % 61))
-          echo "Post-ping jitter sleep: ${POST_SLEEP}s"
-          sleep "${POST_SLEEP}"
+          URLS=("https://tg-main.onrender.com/" "https://tg-main.onrender.com/health" "https://tg-main.onrender.com/api/status")
+          UAS=("Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" "Mozilla/5.0 (X11; Linux x86_64)" "Googlebot/2.1 (+http://www.google.com/bot.html)")
+          sleep $((RANDOM % 120))
+          URL=${URLS[$RANDOM % ${#URLS[@]}]}; UA=${UAS[$RANDOM % ${#UAS[@]}]}
+          echo "-> Pinging $URL"
+          resp=$(curl -s -A "$UA" -w "\n%{http_code}" "$URL")
+          code=${resp##*$'\n'}; body=$(printf "%s" "$resp" | sed '$d' | tr -d '\r' | cut -c1-1000)
+          echo "UA: $UA"
+          echo "Status: $code"
+          echo "Body (trimmed to 1000 chars):"
+          echo "$body"
