@@ -15,5 +15,5 @@ jobs:
           # Add a small random delay (0–2 min) to avoid pattern detection
           sleep $((RANDOM % 120))
           # Hit your live app
-          curl -s -A "Mozilla/5.0" https://tg-main.onrender.com/ > /dev/null
+          curl -s -A "Mozilla/5.0" https://tg-main.onrender.com/health > /dev/null
           echo "Ping done ✅ at $(date)"
