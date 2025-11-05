@@ -1,19 +1,131 @@
-name: Keep Render Service Awake
+name: Keep Render Service Awake (randomized)
 
 on:
   schedule:
+    # runs every 10 minutes (you already used */10)
     - cron: "*/10 * * * *"
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Render Service
+      - name: Randomized ping to Render
+        shell: bash
         run: |
-          echo "Pinging Render app to prevent sleep..."
-          # Add a small random delay (0–2 min) to avoid pattern detection
-          sleep $((RANDOM % 120))
-          # Hit your live app
-          curl -s -A "Mozilla/5.0" https://tg-main.onrender.com/health > /dev/null
-          echo "Ping done ✅ at $(date)"
+          set -euo pipefail
+
+          # ----- config -----
+          BASE_URL="https://tg-main.onrender.com"
+          ENDPOINTS=(
+            "/"
+            "/health"
+            "/api/health"
+            "/status"
+            "/?source=hbtgvfdcs"
+          )
+
+          USER_AGENTS=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15"
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+          )
+
+          ACCEPT_LANGS=(
+            "en-US,en;q=0.9"
+            "en-GB,en;q=0.9"
+            "en-IN,en;q=0.9"
+            "de-DE,de;q=0.9,en;q=0.8"
+          )
+
+          REFERERS=(
+            "https://www.google.com/"
+            "https://www.bing.com/"
+            "https://twitter.com/"
+            "https://news.ycombinator.com/"
+            "-"
+          )
+
+          # ----- randomize behavior -----
+          # random sleep BEFORE ping to add jitter (0 - 180 seconds)
+          PRE_SLEEP=$((RANDOM % 181))
+          echo "Pre-ping jitter sleep: ${PRE_SLEEP}s"
+          sleep "${PRE_SLEEP}"
+
+          # choose endpoint, ua, accept-language, referer randomly
+          EP_IDX=$((RANDOM % ${#ENDPOINTS[@]}))
+          UA_IDX=$((RANDOM % ${#USER_AGENTS[@]}))
+          AL_IDX=$((RANDOM % ${#ACCEPT_LANGS[@]}))
+          REF_IDX=$((RANDOM % ${#REFERERS[@]}))
+
+          ENDPOINT="${ENDPOINTS[$EP_IDX]}"
+          USER_AGENT="${USER_AGENTS[$UA_IDX]}"
+          ACCEPT_LANG="${ACCEPT_LANGS[$AL_IDX]}"
+          REFERER="${REFERERS[$REF_IDX]}"
+
+          # add randomized query param to reduce identical requests
+          RAND_TOKEN=$(date +%s%N)$((RANDOM))
+          URL="${BASE_URL}${ENDPOINT}"
+          if [[ "$URL" != *"?"* ]]; then
+            URL="${URL}?_ka=${RAND_TOKEN}"
+          else
+            URL="${URL}&_ka=${RAND_TOKEN}"
+          fi
+
+          echo "Selected URL: $URL"
+          echo "User-Agent: $USER_AGENT"
+          echo "Accept-Language: $ACCEPT_LANG"
+          if [[ "$REFERER" != "-" ]]; then
+            echo "Referer: $REFERER"
+          else
+            echo "Referer: (none)"
+          fi
+
+          # Use curl to capture body + http code (last 3 chars)
+          # -s silent, -S show errors, -L follow redirects, -m timeout
+          # timeout set to 30s to avoid stuck runs
+          RAW_RESPONSE=$(curl -sSL -m 30 -w "%{http_code}" \
+            -A "$USER_AGENT" \
+            -H "Accept: application/json, text/html;q=0.9,*/*;q=0.8" \
+            -H "Accept-Language: $ACCEPT_LANG" \
+            ${REFERER:+-e "$REFERER"} \
+            "$URL" || true)
+
+          # separate status code (last 3 chars) and body (rest)
+          HTTP_CODE="${RAW_RESPONSE: -3}"
+          BODY="${RAW_RESPONSE:0:${#RAW_RESPONSE}-3}"
+
+          echo "HTTP status: $HTTP_CODE"
+
+          # try to pretty-print JSON, otherwise print raw body (trim to sane length)
+          if [[ -n "$BODY" ]]; then
+            echo "Response body (first 2000 chars shown):"
+            # attempt pretty-print via python json tool; fallback to raw
+            echo "$BODY" | python -c 'import sys, json
+text = sys.stdin.read()
+try:
+    parsed = json.loads(text)
+    print(json.dumps(parsed, indent=2, ensure_ascii=False))
+except Exception:
+    print(text[:2000])' || echo "$BODY" | head -c 2000
+          else
+            echo "<empty body>"
+          fi
+
+          # print small success/diagnostic message
+          if [[ "$HTTP_CODE" =~ ^2 ]]; then
+            echo "Ping result: OK ✅ ($(date -u))"
+          elif [[ "$HTTP_CODE" =~ ^3 ]]; then
+            echo "Ping result: Redirect (3xx) — check target or follow-up required."
+          elif [[ "$HTTP_CODE" =~ ^5 ]]; then
+            echo "Ping result: Server error (5xx) — possibly spun down or blocked by render."
+          else
+            echo "Ping result: HTTP $HTTP_CODE"
+          fi
+
+          # final small random post-sleep to vary total timing
+          POST_SLEEP=$((RANDOM % 61))  # 0-60s
+          echo "Post-ping jitter sleep: ${POST_SLEEP}s"
+          sleep "${POST_SLEEP}"
