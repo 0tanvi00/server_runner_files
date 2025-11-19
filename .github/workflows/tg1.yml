@@ -1,0 +1,33 @@
+name: Keep Render Services Awake
+
+on:
+  schedule:
+    - cron: "*/2 * * * *"   # roughly every 6 minutes
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Randomized ping to both Render apps
+        run: |
+          SERVICES=("https://tg-main.onrender.com" "https://ogufa.onrender.com" "https://momentmaker.onrender.com")
+          PATHS=("/" "/health" "/api/status")
+          UAS=("Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
+               "Mozilla/5.0 (X11; Linux x86_64)" \
+               "Googlebot/2.1 (+http://www.google.com/bot.html)")
+
+          for SVC in "${SERVICES[@]}"; do
+            URL="${SVC}${PATHS[$RANDOM % ${#PATHS[@]}]}"
+            UA=${UAS[$RANDOM % ${#UAS[@]}]}
+            echo "-> Pinging $URL"
+            resp=$(curl -s -A "$UA" -w "\n%{http_code}" "$URL")
+            code=${resp##*$'\n'}
+            body=$(printf "%s" "$resp" | sed '$d' | tr -d '\r' | cut -c1-1000)
+            echo "UA: $UA"
+            echo "Status: $code"
+            echo "Body (trimmed):"
+            echo "$body"
+            echo "-------------------------------------------"
+          done
