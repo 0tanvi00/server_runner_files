@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Randomized ping to both Render apps
         run: |
-          SERVICES=("https://tg-main.onrender.com" "https://ogufa.onrender.com" "https://momentmaker.onrender.com")
+          SERVICES=("https://tg-main.onrender.com" "https://ogufa.onrender.com")
           PATHS=("/" "/health" "/api/status")
           UAS=("Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
